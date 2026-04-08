@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Standings — Strategic View</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f0f13;--surface:#1a1a24;--surface2:#22222e;--border:#2a2a3a;
+  --text:#e0e0e8;--text2:#8888a0;--accent:#6c5ce7;--accent2:#a29bfe;
+  --green:#00b894;--green-bg:rgba(0,184,148,.12);
+  --red:#d63031;--red-bg:rgba(214,48,49,.08);
+  --yellow:#fdcb6e;--yellow-bg:rgba(253,203,110,.15);
+  --blue:#74b9ff;
+  --pink:#fd79a8;
+  --orange:#f7943c;
+}
+html{font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
+
+.container{max-width:1800px;margin:0 auto;padding:16px 20px}
+header.app-header{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;padding:8px 0 4px}
+header.app-header h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
+header.app-header .subtitle{color:var(--text2);font-size:13px}
+
+.loading{text-align:center;padding:80px 0;color:var(--text2);font-size:15px}
+.loading .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin-right:10px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.tabs{display:flex;gap:4px;padding:10px 0 6px;overflow-x:auto;scrollbar-width:thin}
+.tab{padding:7px 16px;border-radius:8px;cursor:pointer;background:var(--surface);color:var(--text2);
+  font-size:12px;font-weight:500;white-space:nowrap;border:1px solid var(--border);transition:all .12s}
+.tab:hover{background:var(--surface2);color:var(--text)}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+.toolbar{display:flex;gap:10px;align-items:center;padding:6px 0;flex-wrap:wrap}
+.search{background:var(--surface);color:var(--text);border:1px solid var(--border);
+  padding:6px 12px;border-radius:7px;font-size:12px;outline:none;width:220px;transition:border .15s}
+.search:focus{border-color:var(--accent)}
+.refresh-btn{background:var(--surface);color:var(--text);border:1px solid var(--border);
+  padding:2px 8px;border-radius:5px;font-size:14px;cursor:pointer;transition:all .12s;vertical-align:middle}
+.refresh-btn:hover{background:var(--surface2);border-color:var(--accent)}
+.refresh-btn.loading{opacity:.6;pointer-events:none}
+
+.meta{color:var(--text2);font-size:11px;padding:2px 0 0;display:flex;gap:14px}
+
+.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);margin:8px 0}
+table.st{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
+thead.st th{position:sticky;top:0;z-index:4;padding:7px 8px;text-align:center;font-weight:600;
+  color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.4px;
+  background:var(--surface2);border-bottom:2px solid var(--border)}
+thead.st th:first-child{border-top-left-radius:10px}
+thead.st th:last-child{border-top-right-radius:10px}
+thead.st th.name-h{text-align:left;min-width:180px}
+tbody.st td{padding:5px 8px;text-align:center;border-bottom:1px solid rgba(42,42,58,.5)}
+tbody.st tr:last-child td{border-bottom:none}
+tbody.st tr:hover td{background:rgba(108,92,231,.06)}
+
+th.name-h,td.name-v{position:sticky;left:0;z-index:3}
+td.name-v{background:var(--surface);text-align:left;white-space:nowrap;font-size:13px;z-index:1}
+thead.st th.name-h{z-index:5;background:var(--surface2)}
+tbody.st tr:hover td.name-v{background:var(--surface2)}
+
+.rank{color:var(--text2);font-weight:700;font-size:13px}
+.group-tag{color:var(--text2);font-size:11px}
+.total-score{font-weight:700;font-size:13px}
+
+.pc{position:relative;min-width:34px}
+.pc.ok{background:var(--green-bg)}
+.pc.fail{background:var(--red-bg)}
+.pc.pending{background:var(--yellow-bg)}
+.v-ok{color:var(--green);font-weight:700}
+.v-fail{color:var(--red)}
+.v-pend{color:#c8a83e}
+.v-empty{color:rgba(255,255,255,.08)}
+.penalty-tag{font-size:9px;opacity:.7}
+
+.sub{font-weight:600;font-size:12px;background:var(--surface2)!important;min-width:30px}
+
+.advisor{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:18px 20px;margin:14px 0;transition:all .2s}
+.advisor-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;cursor:pointer;user-select:none}
+.advisor-head h2{font-size:15px;font-weight:600}
+.advisor-head .toggle{color:var(--text2);font-size:11px;margin-left:auto}
+.advisor-body{overflow:hidden;transition:max-height .3s ease;max-height:4000px}
+.advisor-body.collapsed{max-height:0!important}
+.advisor-desc{color:var(--text2);font-size:12px;margin:8px 0 12px}
+.select-user{background:var(--surface2);color:var(--text);border:1px solid var(--border);
+  padding:7px 12px;border-radius:7px;font-size:12px;min-width:280px;outline:none;cursor:pointer}
+.select-user:focus{border-color:var(--accent)}
+
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}
+.stat{background:var(--surface2);border-radius:8px;padding:10px 16px;text-align:center;min-width:90px}
+.stat .n{font-size:22px;font-weight:700}
+.stat .l{font-size:10px;color:var(--text2);text-transform:uppercase;margin-top:2px}
+.stat.s-green .n{color:var(--green)}
+.stat.s-red .n{color:var(--red)}
+.stat.s-yellow .n{color:var(--yellow)}
+.stat.s-blue .n{color:var(--blue)}
+
+.utable{width:100%}
+.utable th{text-align:left;font-size:10px;text-transform:uppercase;color:var(--text2);
+  padding:6px 8px;border-bottom:1px solid var(--border);letter-spacing:.4px}
+.utable td{padding:7px 8px;text-align:left;border-bottom:1px solid rgba(42,42,58,.3);font-size:12px}
+.utable tr:last-child td{border-bottom:none}
+.pop-bar{display:inline-block;height:5px;border-radius:3px;background:var(--accent);vertical-align:middle;margin-right:6px;opacity:.8}
+.pop-pct{color:var(--text2);font-size:11px}
+.contest-tag{color:var(--accent2);font-size:11px}
+.all-solved{color:var(--green);padding:12px 0;font-weight:600;font-size:13px}
+
+::-webkit-scrollbar{height:5px;width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="container" id="app">
+  <header class="app-header">
+    <h1>Standings</h1>
+    <button class="refresh-btn" id="refresh-btn" title="Refresh data">↻</button>
+    <span class="subtitle" id="sub"></span>
+  </header>
+  <div id="content"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+</div>
+<script>
+(function(){
+  // ─── Resolve label ───
+  var LABEL = '';
+  try { LABEL = standings_label; } catch(e){}
+  if (!LABEL) {
+    var m = location.pathname.match(/standings\/([^/]+)/);
+    if (m) LABEL = m[1];
+  }
+
+  var API = '/standings_data/' + (LABEL || 'c_spring_2025') + '/';
+  var DATA = null;
+  var activeContest = -1; // -1 = all
+  var searchValue = '';
+
+  // ─── Fetch ───
+  function load() {
+    // Try remote API first, fall back to local data.json (same directory)
+    tryFetch(API, function() {
+      tryFetch('data.json', function() {
+        document.getElementById('content').innerHTML =
+          '<div class="loading" style="color:var(--red)">Could not load data. Served via <code>python3 server.py</code>?</div>';
+      });
+    });
+  }
+
+  function tryFetch(url, onFail) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'json';
+    xhr.onload = function() {
+      if (xhr.status === 200 && xhr.response) {
+        DATA = xhr.response;
+        document.getElementById('sub').textContent = LABEL || url;
+        build();
+      } else {
+        onFail();
+      }
+    };
+    xhr.onerror = function() { onFail(); };
+    xhr.send();
+  }
+
+  // ─── Main build ───
+  function build() {
+    var rbtn = document.getElementById('refresh-btn');
+    if (rbtn) {
+      rbtn.classList.remove('loading');
+      rbtn.textContent = '↻';
+    }
+
+    var users = DATA.users;
+    var contests = DATA.contests;
+    if (!contests || !contests.length) {
+      document.getElementById('content').innerHTML = '<div class="loading">No contests</div>';
+      return;
+    }
+
+    // ─── Compute totals ───
+    var userMap = {};
+    users.forEach(function(u) {
+      userMap[u.id] = {
+        id: u.id, name: u.name, group_short: u.group_short || '',
+        totalScore: 0, totalPenalty: 0,
+        contestScores: [], contestPenalties: []
+      };
+    });
+
+    // Filter out users with no activity at all
+    var activeUserIds = {};
+    contests.forEach(function(c) {
+      Object.keys(c.users).forEach(function(uid) {
+        var subs = c.users[uid];
+        var hasActivity = subs.some(function(s) { return s && (s.score > 0 || s.penalty > 0); });
+        if (hasActivity) activeUserIds[uid] = true;
+      });
+    });
+
+    contests.forEach(function(c, ci) {
+      Object.keys(c.users).forEach(function(uid) {
+        var u = userMap[uid];
+        if (!u) return;
+        var sc = 0, pen = 0;
+        c.users[uid].forEach(function(s) {
+          sc += (s && s.score) || 0;
+          if (s && s.score > 0) pen += s.penalty || 0;
+        });
+        u.totalScore += sc;
+        u.totalPenalty += pen;
+        u.contestScores[ci] = sc;
+        u.contestPenalties[ci] = pen;
+      });
+    });
+
+    var sorted = Object.values(userMap)
+      .filter(function(u) { return activeUserIds[u.id]; })
+      .sort(function(a, b) { return b.totalScore - a.totalScore || a.totalPenalty - b.totalPenalty; });
+
+    // Ranks
+    var rank = 1;
+    sorted.forEach(function(u, i) {
+      if (i > 0 && (u.totalScore !== sorted[i-1].totalScore || u.totalPenalty !== sorted[i-1].totalPenalty)) rank = i + 1;
+      u.rank = rank;
+    });
+
+    // Best score per problem
+    var bestPerProblem = contests.map(function(c) {
+      return c.problems.map(function(_, pi) {
+        var best = 0;
+        Object.values(c.users).forEach(function(subs) {
+          if (subs[pi] && subs[pi].score > best) best = subs[pi].score;
+        });
+        return best;
+      });
+    });
+
+    // ─── Render ───
+    var html = '';
+
+    // Tabs
+    html += '<div class="tabs">';
+    html += '<div class="tab' + (activeContest === -1 ? ' active' : '') + '" data-cid="-1">All contests</div>';
+    contests.forEach(function(c, i) {
+      // latest contest first visually but index is oldest-first in data
+      html += '<div class="tab' + (activeContest === i ? ' active' : '') + '" data-cid="' + i + '">' + esc(c.title) + '</div>';
+    });
+    html += '</div>';
+
+    // Advisor
+    html += renderAdvisor();
+
+    // Toolbar
+    html += '<div class="toolbar">';
+    html += '<input class="search" id="search" placeholder="Search by name…" value="' + esc(searchValue) + '">';
+    html += '</div>';
+
+    // Table
+    var showIdxs, show;
+    if (activeContest === -1) {
+      show = contests;
+      showIdxs = contests.map(function(_, i) { return i; });
+    } else {
+      show = [contests[activeContest]];
+      showIdxs = [activeContest];
+    }
+
+    html += '<div class="table-wrap"><table class="st"><thead class="st"><tr>';
+    html += '<th style="min-width:36px">#</th>';
+    html += '<th style="min-width:34px">Гр</th>';
+    html += '<th class="name-h">Имя</th>';
+
+    show.forEach(function(c, ci) {
+      html += '<th colspan="' + c.problems.length + '" style="font-size:10px;color:var(--accent2);border-left:2px solid var(--border)">' + esc(c.title) + '</th>';
+      html += '<th style="border-left:1px solid var(--border);min-width:32px;font-size:11px">Σ</th>';
+    });
+    html += '<th style="border-left:2px solid var(--border);min-width:36px;font-size:11px">Σ</th>';
+    html += '<th style="min-width:42px;font-size:11px">Штр</th>';
+    html += '</tr>';
+
+    // Problem letters
+    html += '<tr><th></th><th></th><th></th>';
+    show.forEach(function(c) {
+      c.problems.forEach(function(p) {
+        html += '<th title="' + esc(p.long) + '" style="min-width:34px">' + esc(p.short) + '</th>';
+      });
+      html += '<th style="border-left:1px solid var(--border)"></th>';
+    });
+    html += '<th style="border-left:2px solid var(--border)"></th><th></th>';
+    html += '</tr></thead>';
+
+    // Body
+    html += '<tbody class="st">';
+
+    sorted.forEach(function(u) {
+      if (searchValue && u.name.toLowerCase().indexOf(searchValue.toLowerCase()) === -1) return;
+
+      html += '<tr>';
+      html += '<td class="rank">' + u.rank + '</td>';
+      html += '<td class="group-tag">' + esc(u.group_short) + '</td>';
+      html += '<td class="name-v">' + esc(u.name) + '</td>';
+
+      var grandTotal = 0;
+      showIdxs.forEach(function(cidx) {
+        var c = contests[cidx];
+        var subs = c.users[u.id];
+        if (!subs) {
+          c.problems.forEach(function() { html += '<td class="pc"><span class="v-empty">·</span></td>'; });
+          html += '<td class="sub"></td>';
+          return;
+        }
+
+        subs.forEach(function(s, pi) {
+          var cls = 'pc', inner = '';
+          if (s && s.verdict === 'OK') {
+            cls += ' ok';
+            var pstr = s.penalty > 0 ? '<span class="penalty-tag">' + (s.penalty <= 9 ? s.penalty : '∞') + '</span>' : '';
+            inner = '<span class="v-ok">+' + pstr + '</span>';
+          } else if (s && s.verdict === 'PR') {
+            cls += ' pending';
+            inner = '<span class="v-pend">?</span>';
+          } else if (!s || s.verdict === null) {
+            inner = '<span class="v-empty">·</span>';
+          } else {
+            if (s.penalty > 0) cls += ' fail';
+            var pstr2 = s.penalty > 0 ? '<span class="penalty-tag">' + (s.penalty <= 9 ? s.penalty : '∞') + '</span>' : '';
+            inner = '<span class="v-fail">' + shortV(s.verdict) + pstr2 + '</span>';
+          }
+          html += '<td class="' + cls + '" title="' + esc(s ? s.verdict || '—' : '—') + '">' + inner + '</td>';
+        });
+
+        var csc = u.contestScores[cidx] || 0;
+        grandTotal += csc;
+        html += '<td class="sub" style="border-left:1px solid var(--border)">' + (csc || '') + '</td>';
+      });
+
+      html += '<td class="total-score" style="border-left:2px solid var(--border)">' + grandTotal + '</td>';
+      html += '<td style="color:var(--text2);font-size:12px">' + (u.totalPenalty || '') + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+
+    document.getElementById('content').innerHTML = html;
+
+    // Bind tabs
+    var tabEls = document.querySelectorAll('.tab');
+    for (var i = 0; i < tabEls.length; i++) {
+      (function(el) {
+        el.addEventListener('click', function() {
+          activeContest = parseInt(el.getAttribute('data-cid'));
+          build();
+        });
+      })(tabEls[i]);
+    }
+
+    // Bind search
+    var sbox = document.getElementById('search');
+    if (sbox) {
+      sbox.addEventListener('input', function() {
+        searchValue = sbox.value;
+        build();
+      });
+      sbox.focus();
+    }
+
+    // Bind refresh
+    var rbtn = document.getElementById('refresh-btn');
+    if (rbtn) {
+      rbtn.addEventListener('click', function() {
+        try { 
+          localStorage.setItem('scrollY', String(window.scrollY));
+          localStorage.setItem('isRefresh', '1');
+        } catch(e) {}
+        rbtn.classList.add('loading');
+        rbtn.textContent = '…';
+        load();
+      });
+    }
+
+    // Bind advisor
+    bindAdvisor(sorted, contests);
+
+    // Restore scroll position after refresh
+    var savedScroll, wasRefresh;
+    try { 
+      savedScroll = localStorage.getItem('scrollY'); 
+      wasRefresh = localStorage.getItem('isRefresh');
+      if (wasRefresh) localStorage.removeItem('isRefresh');
+    } catch(e) {}
+    if (savedScroll && wasRefresh) {
+      console.log('Restoring scroll to', savedScroll);
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() {
+            var scrollY = parseInt(savedScroll, 10);
+            window.scrollTo(0, scrollY);
+            console.log('Scrolled to', scrollY, 'current scrollY:', window.scrollY);
+            try { localStorage.removeItem('scrollY'); } catch(e) {}
+          });
+        });
+      });
+    }
+  }
+
+  // ─── Advisor ───
+  function getCollapsedState() {
+    try { 
+      var val = localStorage.getItem('advisor_collapsed');
+      return val === 'true';
+    } catch(e) { 
+      console.log('localStorage error:', e);
+      return false; 
+    }
+  }
+
+  function renderAdvisor() {
+    var isCollapsed = getCollapsedState();
+    var h = '<div class="advisor">';
+    h += '<div class="advisor-head" id="adv-toggle">';
+    h += '<h2>Strategic Advisor</h2>';
+    h += '<span class="toggle">' + (isCollapsed ? '▶ Show' : '▼ Hide') + '</span>';
+    h += '</div>';
+    h += '<div class="advisor-body' + (isCollapsed ? ' collapsed' : '') + '" id="adv-body">';
+    h += '<div class="advisor-desc">Pick your name — see unsolved problems sorted by popularity. More solvers = easier to tackle.</div>';
+    h += '<select class="select-user" id="adv-select"><option value="">— Select your name —</option></select>';
+    h += '<div id="adv-result"></div>';
+    h += '</div></div>';
+    return h;
+  }
+
+  function bindAdvisor(sorted, contests) {
+    var toggle = document.getElementById('adv-toggle');
+    var body = document.getElementById('adv-body');
+    var sel = document.getElementById('adv-select');
+    var res = document.getElementById('adv-result');
+
+    if (!toggle || !body || !sel) return;
+
+    toggle.addEventListener('click', function() {
+      var isCollapsed = getCollapsedState();
+      var newState = !isCollapsed;
+      try { localStorage.setItem('advisor_collapsed', String(newState)); } catch(e) { console.log('setItem error:', e); }
+      body.classList.toggle('collapsed', newState);
+      toggle.querySelector('.toggle').textContent = newState ? '▶ Show' : '▼ Hide';
+    });
+
+    // Populate (alphabetical)
+    var alphaSorted = sorted.slice().sort(function(a, b) { return a.name.localeCompare(b.name, 'ru'); });
+    alphaSorted.forEach(function(u) {
+      var o = document.createElement('option');
+      o.value = u.id;
+      o.textContent = u.name + ' (' + u.group_short + ')';
+      sel.appendChild(o);
+    });
+
+    sel.addEventListener('change', function() {
+      try { localStorage.setItem('advisor_user', sel.value); } catch(e) {}
+      if (sel.value) showAdvisor(parseInt(sel.value), contests, sorted.length);
+      else res.innerHTML = '';
+    });
+
+    // Restore previously selected user
+    var savedUser;
+    try { savedUser = localStorage.getItem('advisor_user'); } catch(e) {}
+    if (savedUser) {
+      sel.value = savedUser;
+      if (sel.value) showAdvisor(parseInt(savedUser), contests, sorted.length);
+    }
+  }
+
+  function showAdvisor(uid, contests, totalActiveUsers) {
+    var result = document.getElementById('adv-result');
+    var totalSolved = 0, totalProblems = 0;
+    var unsolved = [];
+
+    contests.forEach(function(c, ci) {
+      c.problems.forEach(function(p, pi) {
+        totalProblems++;
+        var sub = (c.users[uid] || [])[pi];
+        var solved = sub && sub.score > 0;
+        if (solved) totalSolved++;
+
+        var solvers = 0;
+        for (var suid in c.users) {
+          var s = c.users[suid][pi];
+          if (s && s.score > 0) solvers++;
+        }
+
+        if (!solved) {
+          unsolved.push({ title: p.short || p.long, contest: c.title, solvers: solvers });
+        }
+      });
+    });
+
+    unsolved.sort(function(a, b) { return b.solvers - a.solvers; });
+
+    var h = '<div class="stats">';
+    h += '<div class="stat s-green"><div class="n">' + totalSolved + '</div><div class="l">Solved</div></div>';
+    h += '<div class="stat s-red"><div class="n">' + unsolved.length + '</div><div class="l">Unsolved</div></div>';
+    h += '<div class="stat s-yellow"><div class="n">' + Math.round(totalSolved / totalProblems * 100) + '%</div><div class="l">Progress</div></div>';
+    h += '</div>';
+
+    if (unsolved.length === 0) {
+      h += '<div class="all-solved">All problems solved!</div>';
+    } else {
+      h += '<div class="table-wrap" style="border:none;margin:0"><table class="utable"><thead><tr>';
+      h += '<th style="width:30px">#</th><th>Problem</th><th>Contest</th><th style="width:80px">Solvers</th><th>Popularity</th>';
+      h += '</tr></thead><tbody>';
+      unsolved.forEach(function(u, i) {
+        var pct = Math.round(u.solvers / totalActiveUsers * 100);
+        var bw = Math.max(4, Math.round(pct * 1.5));
+        h += '<tr>';
+        h += '<td style="color:var(--text2)">' + (i + 1) + '</td>';
+        h += '<td><b>' + esc(u.title) + '</b></td>';
+        h += '<td class="contest-tag">' + esc(u.contest) + '</td>';
+        h += '<td>' + u.solvers + '/' + totalActiveUsers + '</td>';
+        h += '<td><span class="pop-bar" style="width:' + bw + 'px"></span><span class="pop-pct">' + pct + '%</span></td>';
+        h += '</tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+
+    result.innerHTML = h;
+  }
+
+  // ─── Helpers ───
+  function shortV(v) {
+    var map = { WA: '−', TL: 'T', PE: 'P', CE: 'C', RT: 'R', SV: 'S', RJ: 'D' };
+    return map[v] || '−';
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ─── Init ───
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', load);
+  } else {
+    load();
+  }
+})();
+</script>
+</body>
+</html>
